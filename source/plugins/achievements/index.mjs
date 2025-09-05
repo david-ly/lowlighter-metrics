@@ -87,7 +87,9 @@ async function total({imports, graphql, queries}) {
           if (method === "browser") {
             //Setup browser
             console.debug("metrics/compute/plugins > achievements > filling total from github.com/search")
-            const browser = await imports.puppeteer.launch()
+            const browser = await imports.puppeteer.launch({
+              args: ['--no-sandbox']
+            })
             console.debug(`metrics/compute/plugins > achievements > started ${await browser.version()}`)
             //Extracting total from github.com/search
             for (let i = 0; (i < 4) && ((!total.users) || (!total.repositories)); i++) {

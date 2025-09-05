@@ -12,7 +12,9 @@ export default async function({login, q, imports, data, account}, {enabled = fal
     //Start puppeteer and navigate to github.community
     const result = {stats: {solutions: 0, posts: 0, topics: 0, received: 0}, badges: {count: 0}}
     console.debug(`metrics/compute/${login}/plugins > support > starting browser`)
-    const browser = await imports.puppeteer.launch()
+    const browser = await imports.puppeteer.launch({
+      args: ['--no-sandbox']
+    })
     console.debug(`metrics/compute/${login}/plugins > support > started ${await browser.version()}`)
     const page = await browser.newPage()
 

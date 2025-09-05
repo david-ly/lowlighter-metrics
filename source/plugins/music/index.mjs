@@ -94,7 +94,9 @@ export default async function({login, imports, data, q, account}, {enabled = fal
       case "playlist": {
         //Start puppeteer and navigate to playlist
         console.debug(`metrics/compute/${login}/plugins > music > starting browser`)
-        const browser = await imports.puppeteer.launch()
+        const browser = await imports.puppeteer.launch({
+          args: ['--no-sandbox']
+        })
         console.debug(`metrics/compute/${login}/plugins > music > started ${await browser.version()}`)
         const page = await browser.newPage()
         console.debug(`metrics/compute/${login}/plugins > music > loading page`)

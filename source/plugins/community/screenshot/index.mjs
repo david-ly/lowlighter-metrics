@@ -13,7 +13,9 @@ export default async function({login, q, imports, data, account}, {enabled = fal
 
     //Start puppeteer and navigate to page
     console.debug(`metrics/compute/${login}/plugins > screenshot > starting browser`)
-    const browser = await imports.puppeteer.launch()
+    const browser = await imports.puppeteer.launch({
+      args: ['--no-sandbox']
+    })
     console.debug(`metrics/compute/${login}/plugins > screenshot > started ${await browser.version()}`)
     const page = await browser.newPage()
     await page.setViewport(viewport)

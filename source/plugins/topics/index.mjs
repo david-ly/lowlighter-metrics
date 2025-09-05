@@ -15,7 +15,9 @@ export default async function({login, data, imports, q, account}, {enabled = fal
     console.debug(`metrics/compute/${login}/plugins > topics > searching starred topics`)
     let topics = []
     console.debug(`metrics/compute/${login}/plugins > topics > starting browser`)
-    const browser = await imports.puppeteer.launch()
+    const browser = await imports.puppeteer.launch({
+      args: ['--no-sandbox']
+    })
     console.debug(`metrics/compute/${login}/plugins > topics > started ${await browser.version()}`)
     const page = await browser.newPage()
 
