@@ -20,9 +20,7 @@ export default async function({login, q, imports, data, account}, {enabled = fal
 
     //Start puppeteer and navigate to skyline website
     console.debug(`metrics/compute/${login}/plugins > skyline > starting browser`)
-    const browser = await imports.puppeteer.launch({
-      args: ['--no-sandbox']
-    })
+    const browser = await imports.puppeteer.launch()
     console.debug(`metrics/compute/${login}/plugins > skyline > started ${await browser.version()}`)
     const page = await browser.newPage()
     await page.setViewport({width, height})

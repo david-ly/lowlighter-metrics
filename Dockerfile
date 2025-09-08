@@ -30,10 +30,8 @@ RUN chmod +x /metrics/source/app/action/index.mjs \
   && npm run build
 
 # Environment variables
-ENV CHROME_DEVEL_SANDBOX=/opt/google/chrome/chrome-sandbox
-ENV PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-accelerated-2d-canvas --no-first-run --no-zygote --disable-gpu"
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-# ENV PUPPETEER_BROWSER_PATH=google-chrome-stable
+ENV PUPPETEER_BROWSER_PATH=google-chrome-stable
 
 # Execute GitHub action
-ENTRYPOINT ["/bin/bash", "-c", "node /metrics/source/app/action/index.mjs"]
+ENTRYPOINT node /metrics/source/app/action/index.mjs

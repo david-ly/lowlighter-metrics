@@ -46,7 +46,7 @@ export const puppeteer = {
     return _puppeteer.launch({
       headless: this.headless,
       executablePath: process.env.PUPPETEER_BROWSER_PATH,
-      args: this.headless ? ["--no-sandbox", "--disable-extensions", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] : ["--no-sandbox"],
+      args: this.headless ? ["--no-sandbox", "--disable-extensions", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] : [],
       ignoreDefaultArgs: ["--disable-extensions"],
     })
   },
@@ -473,7 +473,7 @@ export const svg = {
   async pdf(rendered, {paddings = "", style = "", twemojis = false, gemojis = false, octicons = false, rest = null, errors = []} = {}) {
     //Instantiate browser if needed
     if (!svg.resize.browser) {
-      svg.resize.browser = await puppeteer.launch({args: ['--no-sandbox']})
+      svg.resize.browser = await puppeteer.launch()
       console.debug(`metrics/svg/pdf > started ${await svg.resize.browser.version()}`)
     }
     //Additional transformations
@@ -509,7 +509,7 @@ export const svg = {
   async resize(rendered, {paddings, convert, scripts = []}) {
     //Instantiate browser if needed
     if (!svg.resize.browser) {
-      svg.resize.browser = await puppeteer.launch({args: ['--no-sandbox']})
+      svg.resize.browser = await puppeteer.launch()
       console.debug(`metrics/svg/resize > started ${await svg.resize.browser.version()}`)
     }
     //Format padding
@@ -602,7 +602,7 @@ export const svg = {
       return null
     //Instantiate browser if needed
     if (!svg.resize.browser) {
-      svg.resize.browser = await puppeteer.launch({args: ['--no-sandbox']})
+      svg.resize.browser = await puppeteer.launch()
       console.debug(`metrics/svg/hash > started ${await svg.resize.browser.version()}`)
     }
     //Compute hash

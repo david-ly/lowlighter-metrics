@@ -14,9 +14,7 @@ export default async function({login, q, imports, data, account}, {enabled = fal
 
     //Start puppeteer and navigate to star lists
     console.debug(`metrics/compute/${login}/plugins > starlists > starting browser`)
-    const browser = await imports.puppeteer.launch({
-      args: ['--no-sandbox']
-    })
+    const browser = await imports.puppeteer.launch()
     console.debug(`metrics/compute/${login}/plugins > starlists > started ${await browser.version()}`)
     const page = await browser.newPage()
 

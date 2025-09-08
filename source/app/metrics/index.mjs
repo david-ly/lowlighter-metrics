@@ -299,9 +299,7 @@ metrics.insights.output = async function({login, imports, conf}, {graphql, rest,
   console.debug(`metrics/compute/${login} > insights > server on port ${conf.settings.port}`)
 
   //Data processing
-  const browser = await imports.puppeteer.launch({
-    args: ['--no-sandbox']
-  })
+  const browser = await imports.puppeteer.launch()
   const page = await browser.newPage()
   console.debug(`metrics/compute/${login} > insights > generating data`)
   const result = await metrics.insights({login}, {graphql, rest, conf}, {Plugins, Templates})

@@ -13,9 +13,7 @@ export default async function({login, q, imports, data, account}, {enabled = fal
 
     //Start puppeteer and navigate to page
     console.debug(`metrics/compute/${login}/plugins > 16personalities > starting browser`)
-    const browser = await imports.puppeteer.launch({
-      args: ['--no-sandbox']
-    })
+    const browser = await imports.puppeteer.launch()
     console.debug(`metrics/compute/${login}/plugins > 16personalities > started ${await browser.version()}`)
     const page = await browser.newPage()
     console.debug(`metrics/compute/${login}/plugins > 16personalities > loading ${url}`)
