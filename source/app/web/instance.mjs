@@ -469,24 +469,24 @@ export default async function({sandbox = false} = {}) {
         const q = req.query
         console.debug(`metrics/app/${login} > ${util.inspect(q, {depth: Infinity, maxStringLength: 256})}`)
         const octokit = {...api, ...uapi(req.headers["x-metrics-session"])}
-        let uconf = conf
-        if ((octokit.login) && (conf.settings.extras?.logged) && (uconf.settings.extras?.features !== true)) {
+        let uconfg = conf
+        if ((octokit.login) && (conf.settings.extras?.logged) && (uconfg.settings.extras?.features !== true)) {
           console.debug(`metrics/app/${login} > session is authenticated, adding additional permissions ${conf.settings.extras.logged}`)
-          uconf = {...conf, settings: {...conf.settings, extras: {...conf.settings.extras}}}
-          uconf.settings.extras.features = uconf.settings.extras.features ?? []
-          uconf.settings.extras.features.push(...conf.settings.extras.logged)
+          uconfg = {...conf, settings: {...conf.settings, extras: {...conf.settings.extras}}}
+          uconfg.settings.extras.features = uconfg.settings.extras.features ?? []
+          uconfg.settings.extras.features.push(...conf.settings.extras.logged)
         }
         //Preset
-        if ((q["config.presets"]) && ((uconf.settings.extras?.features?.includes("metrics.setup.community.presets")) || (uconf.settings.extras?.features === true) || (uconf.settings.extras?.default))) {
+        if ((q["config.presets"]) && ((uconfg.settings.extras?.features?.includes("metrics.setup.community.presets")) || (uconfg.settings.extras?.features === true) || (uconfg.settings.extras?.default))) {
           console.debug(`metrics/app/${login} > presets have been specified, loading them`)
           Object.assign(q, await presets(q["config.presets"]))
         }
         //Render
-        const convert = uconf.settings.outputs.includes(q["config.output"]) ? q["config.output"] : uconf.settings.outputs[0]
+        const convert = uconfg.settings.outputs.includes(q["config.output"]) ? q["config.output"] : uconfg.settings.outputs[0]
         const {rendered, mime} = await metrics({login, q}, {
           ...octokit,
           plugins,
-          conf: uconf,
+          conf: uconfg,
           die: q["plugins.errors.fatal"] ?? false,
           verify: q.verify ?? false,
           convert: convert !== "auto" ? convert : null,

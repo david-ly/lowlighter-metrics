@@ -1,48 +1,76 @@
+import {processEvent} from './process-event.js'
+
+const LOG_PREFIX = (login) => `metrics/compute/${login}/plugins > activity`
+
 //Setup
 export default async function({login, data, rest, q, account, imports}, {enabled = false, markdown = "inline", extras = false} = {}) {
   //Plugin execution
   try {
-    //Check if plugin is enabled and requirements are met
-    if ((!q.activity) || (!imports.metadata.plugins.activity.enabled(enabled, {extras})))
+    if ((!q.activity)
+      || (!imports.metadata.plugins.activity.enabled(enabled, {extras})))
       return null
 
-    //Context
     let context = {mode: "user"}
-    if (q.repo) {
-      console.debug(`metrics/compute/${login}/plugins > activity > switched to repository mode`)
-      const {owner, repo} = data.user.repositories.nodes.map(({name: repo, owner: {login: owner}}) => ({repo, owner})).shift()
+    if (q.repo) { // remap data {(repo) name, owner.login} -> {repo, owner}
+      console.debug(`${LOG_PREFIX(login)} > switched to repository mode`)
+      const {user: {repositories: {nodes}}} = data
+      console.dir({nodes})
+      nodes.map(({name: repo, owner: {login: owner}}) => ({repo, owner}))
+      const {owner, repo} = nodes.shift()
       context = {...context, mode: "repository", owner, repo}
     }
 
     //Load inputs
-    let {limit, load, days, filter, visibility, timestamps, skipped, ignored} = imports.metadata.plugins.activity.inputs({data, q, account})
-    if (!days)
+    let {
       days = Infinity
+    , filter
+    , ignored
+    , limit
+    , load
+    , skipped
+    , timestamps
+    , visibility
+    } = imports.metadata.plugins.activity.inputs({account, data, q})
     skipped.push(...data.shared["repositories.skipped"])
     ignored.push(...data.shared["users.ignored"])
     const pages = Math.ceil(load / 100)
     const codelines = 2
 
     //Get user recent activity
-    console.debug(`metrics/compute/${login}/plugins > activity > querying api`)
+    console.debug(`${LOG_PREFIX(login)} > querying api`)
+    const {owner, repo} = context
+    const opts = {username: login, per_page: 100}
     const events = []
     try {
       for (let page = 1; page <= pages; page++) {
-        console.debug(`metrics/compute/${login}/plugins > activity > loading page ${page}/${pages}`)
-        events.push(...(context.mode === "repository" ? await rest.activity.listRepoEvents({owner: context.owner, repo: context.repo}) : await rest.activity.listEventsForAuthenticatedUser({username: login, per_page: 100, page})).data)
+        console.debug(`${LOG_PREFIX(login)} > loading page ${page}/${pages}`)
+        const event = context.mode === 'repository'
+          ? await rest.activity.listRepoEvents({owner, repo})
+          : await rest.activity.listEventsForAuthenticatedUser({...opts, page})
+        events.push(...event.data)
       }
+    } catch {
+      console.debug(`${LOG_PREFIX(login)} > no more page to load`)
     }
-    catch {
-      console.debug(`metrics/compute/${login}/plugins > activity > no more page to load`)
-    }
-    console.debug(`metrics/compute/${login}/plugins > activity > ${events.length} events loaded`)
+    console.debug(`${LOG_PREFIX(login)} > ${events.length} events loaded`)
 
     //Extract activity events
+    let filtered = events.filter(({actor}) => {
+      if (account === 'organization') return true
+      return actor.login?.toLocaleLowerCase() === login.toLocaleLowerCase()
+    })
+    console.debug(`${LOG_PREFIX(login)} > events (actor): ${filtered.length}`)
+    // filtered = filtered.filter(({created_at}) => Number.isFinite(days) ? new Date(created_at) > new Date(Date.now() - days * 24 * 60 * 60 * 1000) : true)
+    // console.debug(`${LOG_PREFIX(login)} > after date filter: ${filtered.length} events`)
+    filtered = filtered.filter((event) => {
+      return visibility === "public" ? event.public : true
+    })
+    console.debug(`${LOG_PREFIX(login)} > events (vis): ${filtered.length}`)
+
+    // const processed_events = filtered.map(event => processEvent({event, ctx}))
+    // const activity = await Promise.all(processed_events)
     const activity = (await Promise.all(
-      events
-        .filter(({actor}) => account === "organization" ? true : actor.login?.toLocaleLowerCase() === login.toLocaleLowerCase())
-        .filter(({created_at}) => Number.isFinite(days) ? new Date(created_at) > new Date(Date.now() - days * 24 * 60 * 60 * 1000) : true)
-        .filter(event => visibility === "public" ? event.public : true)
+      filtered
         .map(async ({type, payload, actor: {login: actor}, repo: {name: repo}, created_at}) => {
           //See https://docs.github.com/en/free-pro-team@latest/developers/webhooks-and-events/github-event-types
           const timestamp = new Date(created_at)
@@ -109,40 +137,114 @@ export default async function({login, data, rest, q, account, imports}, {enabled
             case "PublicEvent": {
               return {type: "public", actor, timestamp, repo}
             }
-            //Pull requests events
+            //PR Events—GET /repos/{owner}/{repo}/pulls/{pull_number}
             case "PullRequestEvent": {
               if (!["opened", "closed"].includes(payload.action))
                 return null
-              const {action, pull_request: {user: {login: user}, title, number, body: content, additions: added, deletions: deleted, changed_files: changed, merged}} = payload
-              if (!imports.filters.text(user, ignored))
-                return null
-              return {type: "pr", actor, timestamp, repo, action: (action === "closed") && (merged) ? "merged" : action, user, title, number, content: await imports.markdown(content, {mode: markdown, codelines}), lines: {added, deleted}, files: {changed}}
+              // console.debug('PullRequestEvent')
+              // console.dir({payload}, {depth: null})
+              const {
+                action
+              , pull_request: {
+                  // user: {login: user}
+                // , title
+                  number
+                // , body: content, additions: added, deletions: deleted, changed_files: changed, merged
+                , url
+                }
+              } = payload
+              const {data} = await rest.pulls.get({
+                owner: actor
+              , repo: repo.split('/')[1]
+              , pull_number: number
+              })
+              const {
+                additions: added
+              , body: content
+              , changed_files: changed
+              , deletions: deleted
+              , merged
+              , title
+              , user: {login: user}
+              } = data
+              if (!imports.filters.text(user, ignored)) return null
+
+              return {
+                action: (action === "closed") && (merged) ? "merged" : action
+              , actor
+              , content: await imports.markdown(content, {mode: markdown, codelines})
+              , files: {changed}
+              , lines: {added, deleted}
+              , number
+              , repo
+              , timestamp
+              , title
+              , type: "pr"
+              , user
+              }
             }
             //Reviewed a pull request
             case "PullRequestReviewEvent": {
-              const {review: {state: review}, pull_request: {user: {login: user}, number, title}} = payload
-              if (!imports.filters.text(user, ignored))
-                return null
-              return {type: "review", actor, timestamp, repo, review, user, number, title}
+              const {review, pull_request} = payload
+              const {user: {login: user}, state} = review
+              const {number} = pull_request
+
+              // const {
+              //   review: {state}
+              // , pull_request: {user: {login: user}, number, title}
+              // } = payload
+              if (!imports.filters.text(user, ignored)) return null
+              return {type: "review", actor, timestamp, repo, state, user, number, title: null}
             }
             //Commented on a pull request
             case "PullRequestReviewCommentEvent": {
-              if (!["created"].includes(payload.action))
-                return null
-              const {pull_request: {user: {login: user}, title, number}, comment: {body: content, performed_via_github_app: mobile}} = payload
-              if (!imports.filters.text(user, ignored))
-                return null
-              return {type: "comment", on: "pr", actor, timestamp, repo, content: await imports.markdown(content, {mode: markdown, codelines}), user, mobile, number, title}
+              if (!["created"].includes(payload.action)) return null
+
+              const {
+                pull_request: { number }
+              , comment: {
+                  body: content
+                , user: {login: user}
+                }
+              } = payload
+              if (!imports.filters.text(user, ignored)) return null
+              return {type: "comment", on: "pr", actor, timestamp, repo, content: await imports.markdown(content, {mode: markdown, codelines}), user, mobile: null, number, title: null}
             }
             //Pushed commits
             case "PushEvent": {
-              let {size, commits, ref} = payload
-              commits = commits.filter(({author: {email}}) => imports.filters.text(email, ignored))
-              if (!commits.length)
-                return null
-              if (commits.slice(-1).pop()?.message.startsWith("Merge branch "))
-                commits = commits.slice(-1)
-              return {type: "push", actor, timestamp, repo, size, branch: ref.match(/refs.heads.(?<branch>.*)/)?.groups?.branch ?? null, commits: commits.reverse().map(({sha, message}) => ({sha: sha.substring(0, 7), message}))}
+              let {ref, head: sha} = payload
+              const lookback = 30 * 24 * 60 * 60 * 1000 // 30 days
+              const {data} = await rest.repos.listCommits({
+                owner: actor
+              , repo: repo.split('/')[1]
+              , sha
+              , since: new Date(Date.now() - lookback).toISOString()
+              })
+              console.dir({data}, {depth: null})
+
+              const commits = []
+              for (const {commit, sha} of data) {
+                const {author: {email}, message} = commit
+                if (!imports.filters.text(email, ignored)) continue
+                if (message.startsWith('Merge branch ')) continue
+
+                commits.push({sha: sha.substring(0, 7), message})
+              }
+              console.dir({commits}, {depth: null})
+              if (!commits.length) return null
+
+              const matched = ref.match(/refs.heads.(?<branch>.*)/)
+              const branch = matched?.groups?.branch ?? null
+              console.dir({matched, branch})
+              return {
+                type: "push"
+              , actor
+              , timestamp
+              , repo
+              , size: commits.length
+              , branch
+              , commits: commits.reverse().map(({sha, message}) => ({sha: sha.substring(0, 7), message}))
+              }
             }
             //Released
             case "ReleaseEvent": {
@@ -165,14 +267,14 @@ export default async function({login, data, rest, q, account, imports}, {enabled
           }
         }),
     ))
-      .filter(event => event)
-      .filter(event => filter.includes("all") || filter.includes(event.type))
-      .slice(0, limit)
+    let ret_activity = activity.filter(event => event)
+    ret_activity = ret_activity.filter(event => filter.includes("all") || filter.includes(event.type))
+    console.debug(`${LOG_PREFIX(login)} > after filter type: ${ret_activity.length} events`)
+    ret_activity = ret_activity.slice(0, limit)
+    console.debug(`${LOG_PREFIX(login)} > final count after limit: ${ret_activity.length} events`)
 
-    //Results
-    return {timestamps, events: activity}
+    return {timestamps, events: ret_activity}
   }
-  //Handle errors
   catch (error) {
     throw imports.format.error(error)
   }
